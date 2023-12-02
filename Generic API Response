@@ -1,0 +1,146 @@
+# Generic API Response With Spring Boot
+
+Greetings everyone, in this article we will examine how our services return to clients and design a generic response object according to the project needs. Let’s get into the subject quickly and continue with the following items:
+
+What is Response?
+What is ResponseEntity?
+Let’s Create Our GenericResponse Object
+What is the use of a Generic Response Object?
+How to Use ResponseEntity and GenericResponse Together?
+What is Response?
+In web projects, “response” refers to the data/answers sent back to the client by the server after the client makes a request over the web. When a client, such as a web browser or mobile application, requests a resource from the server, the server processes the request and provides a response.
+We can summarize how a response is created in a web project with a general flow as follows:
+
+Client Request: The client sends a request to the server. This could be a json, web page, image, stylesheet(css), a script, or an API call.
+Server processing: The server receives the request and processes it. This may include running server-side scripts, querying a database, or performing another operation.
+Server response: After processing the request, the server creates a response. This response contains a status code, message, and the requested data if successful.
+Client processing: The client receives the response, interprets the status code, and if the content was received successfully, usually passes the data to the user or performs some necessary processing.
+I do not detail the Response issue further in this article. Let’s continue with the second title.
+
+
+API Response AI Illustration
+What is ResponseEntity?
+In Spring Boot, ResponseEntity is a class that represents the entire HTTP response and is derived from the HttpEntity class. What we mean by the entire HTTP response is; status code, headers and body. We can change these features of the response from your endpoints, that is, controller methods, and use them flexibly. Let’s examine the example below:
+
+@GetMapping("/name")
+public ResponseEntity<String> getName() {
+    return ResponseEntity
+            .status(HttpStatus.OK) // .ok() for shortcut
+            .header("Custom-Header", "value")
+            .body("Ahmet Emre");
+}
+In the example above, we returned a response using the status code, header and body properties. You can visit the ResponseEntity class to examine all its other features and methods in detail. Now let’s create our own Generic Response object.
+
+Let’s Create Our GenericResponse Object
+We can say that GenericResponse is a term used to express a general response class. This type of class provides us with a generalized structure to cover the different types of data that the API can return. Thus, we can return various responses to the client, such as success information, error messages, data and other relevant information, through the same format.
+
+The GenericResponse class will contain properties common to every response returned from the API. This structure; It will enable us to standardize fields such as error codes, messages, and returned data and to design a consistent structure for responses from different endpoints. Another advantage of this approach is that the client side can process API responses more easily, because the responses will always come with the same format.
+
+As an example, let’s create a GenericResponse class:
+
+@Data
+@Builder
+@AllArgsConstructor
+public class GenericResponse<T> {
+    private boolean success;
+    private String message;
+    private T data;
+}
+By using this structure, we will design our responses according to a single format and we will return our responses to clients only in this format.
+
+In addition to this class, all necessary additions can be made and expanded according to project needs. Now let’s rewrite the controller method we wrote before, using this structure:
+
+@GetMapping("/name")
+public GenericResponse<String> getName() {
+      return GenericResponse.<String>builder()
+          .success(Boolean.TRUE)
+          .message("Get Name Successfull!")
+          .data("Ahmet Emre")
+          .build();
+}
+In this example, GenericResponse returned data of type String as a response. Let’s make it a little more complicated and return a User object instead of a String:
+
+@GetMapping("/username/{username}")
+public GenericResponse<UserDto> getByUsername
+                    (@PathVariable("username") String username){
+      User user = userService.findUserByUserName(username)
+                                .orElseThrow(UserNotFoundException::new);
+      return GenericResponse.<UserDto>builder()
+              .success(true)
+              .message("User Found")
+              .data(userMapper.fromUser(user))
+              .build();
+}
+As can be seen from the code snippets above, this is the basic idea. Now let’s change the GenericResponse class a little to improve the code quality a little more:
+
+@Data
+@Builder
+@AllArgsConstructor
+public class GenericResponse<T> {
+      private boolean success;
+      private String message;
+      private T data;
+
+      public static <T> GenericResponse<T> empty() {
+          return success(null);
+      }
+
+      public static <T> GenericResponse<T> success(T data) {
+          return GenericResponse.<T>builder()
+          .message("SUCCESS!")
+          .data(data)
+          .success(true)
+          .build();
+      }
+
+      public static <T> GenericResponse<T> error() {
+          return GenericResponse.<T>builder()
+          .message("ERROR!")
+          .success(false)
+          .build();
+      }
+}
+As you can see, we added methods that we can easily use in the controller class as a result of successful operations and incorrect operations. Similarly, you can increase your methods to receive messages from outside:
+
+public static <T> GenericResponse<T> success(T data, String message) {
+    return GenericResponse.<T>builder()
+                .message(message)
+                .data(data)
+                .success(true)
+                .build();
+}
+Finally, let’s update our controller method:
+
+@GetMapping("/username/{username}")
+public GenericResponse<UserDto> getByUsername(@PathVariable("username") String username){
+    User user = userService.findUserByUserName(username)
+                    .orElseThrow(UserNotFoundException::new);
+    UserDto mappedUser = userMapper.fromUser(user);
+    return GenericResponse.success(mappedUser);
+}
+
+AI generated image
+What is the use of a Generic Response Object?
+In fact, we have shown what it will be useful for in the previous articles, but let’s summarize it again with a few articles:
+
+Standard Response Structure: All API responses follow the same basic structure. This makes it easier for client-side applications to process API responses.
+Error Handling: Errors returned from the API can be easily managed. When an error occurs anywhere in the API, it can be notified to the client with an error message defined in the GenericResponse object and a boolean value expressing the failure status.
+Flexibility: We can carry different types of data in the data field of the GenericResponse object. This allows us to carry a wide variety of data types with a single response class.
+Consistency: Returning a consistent response for both successful and unsuccessful transactions made through the API makes it easier to develop and maintain client applications.
+Maintainability: It is important that the API is ready for future changes and expansions. By using GenericResponse, it becomes easy to add new fields or change the existing structure.
+Using GenericResponse provides a standard throughout the application and increases the extensibility and maintainability of the application over time. This is especially important in large and complex systems or services that work with many clients.
+
+How to Use ResponseEntity and GenericResponse Together?
+We mentioned that while ResponseEntity is used to provide control at the HTTP level and fine-tune the HTTP protocol, GenericResponse is used to create a standard response format at the application level. Most often, these two structures are combined; i.e. GenericResponse is placed inside ResponseEntity. Let’s examine the example below:
+
+@GetMapping("/username/{username}")
+public ResponseEntity<GenericResponse<UserDetailDto>> getByUsername
+                                  (@PathVariable("username") String username){
+    User user = userService.findUserByUserName(username)
+                  .orElseThrow(UserNotFoundException::new);
+    UserDetailDto mappedUser = userMapper.fromUser(user);
+    return ResponseEntity.ok(GenericResponse.success(mappedUser));
+}
+This approach will allow us to standardize and make sense of the data returned via the API while maintaining all the flexibility provided by the HTTP protocol. In this way, the response will contain HTTP status codes and headers, as well as messages and transaction results specific to the business logic of our application.
+
+Enjoy your work.
